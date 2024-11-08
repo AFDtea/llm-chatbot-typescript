@@ -11,7 +11,6 @@ export type ChatbotResponse = UnpersistedChatbotResponse & {
   id: string;
 };
 
-// tag::clear[]
 export async function clearHistory(sessionId: string): Promise<void> {
   const graph = await initGraph();
   await graph.query(
@@ -23,22 +22,28 @@ export async function clearHistory(sessionId: string): Promise<void> {
     "WRITE"
   );
 }
-// end::clear[]
 
-// tag::get[]
 export async function getHistory(
   sessionId: string,
   limit: number = 5
 ): Promise<ChatbotResponse[]> {
-  // TODO: Execute the Cypher statement from /cypher/get-history.cypher in a read transaction
-  // TODO: Use string templating to make the limit dynamic: 0..${limit}
-  // const graph = await initGraph()
-  // const res = await graph.query<ChatbotResponse>(cypher, { sessionId }, "READ")
-  // return res
+  const graph = await initGraph()
+  const res = await graph.query<ChatbotResponse>(
+    `MATCH (:Session {id: $sessionId})-[:LAST_RESPONSE]->(last)
+    MATCH path = (start)-[:NEXT*0..5]->(last)
+    WHERE length(path) = 5 OR NOT EXISTS { ()-[:NEXT]->(start) }
+    UNWIND nodes(path) AS response
+    RETURN response.id AS id,
+    response.input AS input,
+    response.rephrasedQuestion AS rephrasedQuestion,
+    response.output AS output,
+    response.cypher AS cypher,
+    response.createdAt AS createdAt,
+    [ (response)-[:CONTEXT]->(n) | elementId(n) ] AS context`, 
+     { sessionId }, "READ")
+  return res as ChatbotResponse[];
 }
-// end::get[]
 
-// tag::save[]
 /**
  * Save a question and response to the database
  *
@@ -60,9 +65,63 @@ export async function saveHistory(
   ids: string[],
   cypher: string | null = null
 ): Promise<string> {
-  // TODO: Execute the Cypher statement from /cypher/save-response.cypher in a write transaction
-  // const graph = await initGraph()
-  // const res = await graph.query<{id: string}>(cypher, params, "WRITE")
-  // return res[0].id
+  const graph = await initGraph()
+  const res = await graph.query<{id: string}>(
+    `MERGE (session:Session { id: $sessionId }) // (1)
+
+    // <2> Create new response
+    CREATE (response:Response {
+      id: randomUuid(),
+      createdAt: datetime(),
+      source: $source,
+      input: $input,
+      output: $output,
+      rephrasedQuestion: $rephrasedQuestion,
+      cypher: $cypher
+    })
+    CREATE (session)-[:HAS_RESPONSE]->(response)
+
+    WITH session, response
+
+    CALL {
+      WITH session, response
+
+      // <3> Remove existing :LAST_RESPONSE relationship if it exists
+      MATCH (session)-[lrel:LAST_RESPONSE]->(last)
+      DELETE lrel
+
+      // <4? Create :NEXT relationship
+      CREATE (last)-[:NEXT]->(response)
+    }
+
+    // <5> Create new :LAST_RESPONSE relationship
+    CREATE (session)-[:LAST_RESPONSE]->(response)
+
+    // <6> Create relationship to context nodes
+    WITH response
+
+    CALL {
+      WITH response
+      UNWIND $ids AS id
+      MATCH (context)
+      WHERE elementId(context) = id
+      CREATE (response)-[:CONTEXT]->(context)
+
+      RETURN count(*) AS count
+    }
+
+    RETURN DISTINCT response.id AS id`,
+    {
+      sessionId,
+      source,
+      input,
+      output,
+      rephrasedQuestion,
+      cypher: cypher,
+      ids,
+    },
+    "WRITE"
+  );
+
+  return res && res.length ? res[0].id : "";
 }
-// end::save[]
