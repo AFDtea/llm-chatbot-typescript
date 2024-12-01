@@ -55,7 +55,14 @@ export default async function initAgent(
       })
 
       // Pass to the executor
-      .pipe(executor)
+      .pipe(async (input, config) => {
+        const modifiedInput = {
+          ...input,
+          input: input.rephrasedQuestion, // Use rephrased question as main input
+        };
+        return executor.invoke(modifiedInput, config);
+      })
+      
       .pick("output")
   );
 }

@@ -23,7 +23,7 @@ export default function initRephraseChain(llm: BaseChatModel) {
     subject of the conversation history.
 
     If you do not have the required information required to construct
-    a standalone question, ask for clarification.
+    a standalone question based on database access and your previous training, ask for clarification.
 
     Always include the subject of the history in the question.
 

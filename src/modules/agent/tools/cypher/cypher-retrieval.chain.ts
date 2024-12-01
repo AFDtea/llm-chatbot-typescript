@@ -39,6 +39,8 @@ export async function recursivelyEvaluate(
   const evaluatorChain = await initCypherEvaluationChain(llm);
 
   let cypher =  await generationChain.invoke(question);
+  console.log('Generated Cypher Query:', cypher); // Add this log
+
 
   let errors = ["N/A"];
   let tries = 0;
@@ -85,6 +87,8 @@ export async function getResults(
   let results;
   let retries = 0;
   let cypher = input.cypher;
+  console.log('Question:', input.question);  // Log the input question
+  console.log('Executing Cypher:', input.cypher);  // Log the final Cypher query
 
   //Eval chain if error thrown by Neo4J
   const evaluationChain = await initCypherEvaluationChain(llm);
@@ -93,7 +97,7 @@ export async function getResults(
     try {
       results = await graph.query(cypher);
       // Add logging to see what's being returned
-      console.log('Query results:', results);
+      console.log('Query Results:', JSON.stringify(results, null, 2));  // Pretty print results
       return results;
     } catch (e: any) {
       console.error('Query error:', e.message);
