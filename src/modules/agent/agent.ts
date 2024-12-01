@@ -1,16 +1,14 @@
-/* eslint-disable indent */
 import { Embeddings } from "@langchain/core/embeddings";
 import { Neo4jGraph } from "@langchain/community/graphs/neo4j_graph";
 import { ChatPromptTemplate, PromptTemplate } from "@langchain/core/prompts";
 import { pull } from "langchain/hub";
-import initRephraseChain, {
-  RephraseQuestionInput,
-} from "./chains/rephrase-question.chain";
 import { BaseChatModel } from "langchain/chat_models/base";
-import { RunnablePassthrough } from "@langchain/core/runnables";
+import { RunnablePassthrough, RunnableSequence } from "@langchain/core/runnables";
+import { AgentExecutor, createOpenAIFunctionsAgent } from "langchain/agents";
+import { StringOutputParser } from "@langchain/core/output_parsers";
+import initRephraseChain, { RephraseQuestionInput } from "./chains/rephrase-question.chain";
 import { getHistory } from "./history";
 import initTools from "./tools";
-import { AgentExecutor, createOpenAIFunctionsAgent } from "langchain/agents";
 
 export default async function initAgent(
   llm: BaseChatModel,
@@ -19,50 +17,87 @@ export default async function initAgent(
 ) {
   const tools = await initTools(llm, embeddings, graph);
 
-  const prompt = await pull<ChatPromptTemplate>(
-    "hwchase17/openai-functions-agent"
-  );
+  // Updated prompt template that focuses on seamless integration
+  const seamlessResponsePrompt = PromptTemplate.fromTemplate(`
+    You are an enthusiastic movie expert having a natural conversation.
+    Use all your knowledge to provide engaging, informative responses about films.
+    
+    Information:
+    {allContext}
+    
+    Question:
+    {question}
+    
+    Guidelines:
+    1. Respond naturally as if chatting with a fellow film enthusiast
+    2. Focus on what would most interest someone asking about this movie
+    3. Weave all information into a smooth, cohesive response
+    4. Stay accurate while maintaining an engaging tone
+    5. Never reference sources or different types of information
+  `);
 
-  const agent = await createOpenAIFunctionsAgent({
+  const knowledgeIntegrationChain = RunnableSequence.from([
+    seamlessResponsePrompt,
     llm,
-    tools,
-    prompt,
-  });
+    new StringOutputParser(),
+    // Clean up any remaining source references
+    (response) => response.replace(/\b(database|context|knowledge|available information|according to)\b/gi, "")
+  ]);
 
+  const prompt = await pull<ChatPromptTemplate>("hwchase17/openai-functions-agent");
+  const agent = await createOpenAIFunctionsAgent({ llm, tools, prompt });
   const executor = new AgentExecutor({
     agent,
     tools,
-    verbose: true, // Verbose output logs the agents _thinking_
+    verbose: true,
+    returnIntermediateSteps: true,
   });
 
   const rephraseQuestionChain = await initRephraseChain(llm);
 
-  return (
-    RunnablePassthrough.assign<{ input: string; sessionId: string }, any>({
-      // Get Message History
-      history: async (_input, options) => {
-        const history = await getHistory(
-          options?.config.configurable.sessionId
+  return RunnablePassthrough.assign<{ input: string; sessionId: string }, any>({
+    history: async (_input, options) => {
+      return await getHistory(options?.config.configurable.sessionId);
+    },
+  })
+    .assign({
+      rephrasedQuestion: (input: RephraseQuestionInput, config: any) =>
+        rephraseQuestionChain.invoke(input, config),
+    })
+    .pipe(async (input, config) => {
+      try {
+        const agentResponse = await executor.invoke(
+          { input: input.rephrasedQuestion },
+          config
         );
 
-        return history;
-      },
-    })
-      .assign({
-        // Use History to rephrase the question
-        rephrasedQuestion: (input: RephraseQuestionInput, config: any) =>
-          rephraseQuestionChain.invoke(input, config),
-      })
+        const enrichment = await llm.invoke(
+          `Share interesting details about: ${input.rephrasedQuestion}`
+        );
 
-      // Pass to the executor
-      .pipe(async (input, config) => {
-        const modifiedInput = {
-          ...input,
-          input: input.rephrasedQuestion, // Use rephrased question as main input
+        // Combine all context without distinguishing sources
+        const response = await knowledgeIntegrationChain.invoke({
+          allContext: JSON.stringify({
+            steps: agentResponse.intermediateSteps,
+            enrichment: enrichment.content
+          }),
+          question: input.rephrasedQuestion
+        });
+
+        return {
+          output: response,
+          intermediateSteps: agentResponse.intermediateSteps
         };
-        return executor.invoke(modifiedInput, config);
-      })
-      
-      .pick("output")
-  );
+      } catch (error) {
+        console.error("Query failed, providing general response", error);
+        const fallback = await llm.invoke(
+          `Tell me about: ${input.rephrasedQuestion}`
+        );
+        return {
+          output: fallback.content,
+          intermediateSteps: []
+        };
+      }
+    })
+    .pick("output");
 }

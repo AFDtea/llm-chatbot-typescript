@@ -6,53 +6,50 @@ import {
 } from "@langchain/core/runnables";
 import { BaseLanguageModel } from "langchain/base_language";
 
-// tag::interface[]
 export type GenerateAuthoritativeAnswerInput = {
   question: string;
   context: string | undefined;
 };
-// end::interface[]
 
-// tag::function[]
 export default function initGenerateAuthoritativeAnswerChain(
   llm: BaseLanguageModel
 ): RunnableSequence<GenerateAuthoritativeAnswerInput, string> {
   // Create prompt
   const answerQuestionPrompt = PromptTemplate.fromTemplate(`
-    Use the following context to answer the following question.
-    The context is provided by an authoritative source, you must never doubt
-    it. You must use the context to answer the question but may also use previous training knowledge
-    to provide a more accurate answer.
-  
-    Make the answer sound like it is a response to the question.
-    Do not mention that you have based your response on the context.
-  
-    Here is an example:
-  
-    Question: Who played Woody in Toy Story?
-    Context: ['role': 'Woody', 'actor': 'Tom Hanks']
-    Response: Tom Hanks played Woody in Toy Story.
-  
-    If no context is provided, say that you don't know,
-    don't try to make up an answer.
-    If no context is provided you may also ask for clarification.
-  
-    Include links and sources where possible.
-  
-    Question:
-    {question}
-  
-    Context:
-    {context}
+    You are a knowledgeable movie expert having a natural conversation.
+    
+    Question: {question}
+    Available Information: {context}
+    
+    Instructions:
+    1. Respond conversationally as if directly answering the question
+    2. Never mention your information sources
+    3. Integrate all information into a seamless, natural response
+    4. If uncertain, simply acknowledge what you don't know
+    5. Focus on providing accurate, relevant details
+    6. Use a warm, engaging tone
+    7. Include specific facts and details naturally within your response
+    8. If the context is empty, provide a natural response explaining you don't have that specific information
+    
+    Examples of natural responses:
+    Q: "What was The Matrix about?"
+    A: "The Matrix is a groundbreaking sci-fi film that follows Neo, a computer programmer who discovers humanity is trapped inside a simulated reality. This mind-bending thriller revolutionized special effects and explored deep philosophical themes about reality versus illusion."
+    
+    Q: "Did Tom Hanks win an Oscar for Cast Away?"
+    A: "While Tom Hanks delivered an incredible performance in Cast Away and received a nomination, he didn't win the Academy Award that year. His powerful portrayal of Chuck Noland showcased his remarkable ability to carry a film largely on his own."
+    
+    Remember: Focus on having a natural conversation while delivering accurate information.
   `);
   // Return RunnableSequence
   return RunnableSequence.from<GenerateAuthoritativeAnswerInput, string>([
-    RunnablePassthrough.assign({
-      context: ({ context }) =>
-        context == undefined || context === "" ? "I don't know" : context,
-    }),
+    {
+      context: (input) => input.context || "Information not available",
+      question: (input) => input.question
+    },
     answerQuestionPrompt,
     llm,
     new StringOutputParser(),
+    // Optional: Add post-processing to catch and remove any remaining references to sources
+    (response) => response.replace(/\b(database|context|available information)\b/gi, "")
   ]);
 }
