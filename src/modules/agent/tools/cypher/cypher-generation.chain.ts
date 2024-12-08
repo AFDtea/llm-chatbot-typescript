@@ -19,28 +19,20 @@ export default async function initCypherGenerationChain(
 
   You must:
   * Only use the nodes, relationships and properties mentioned in the schema.
-  * When required, \`IS NOT NULL\` to check for property existence, and not the exists() function.
+  * When required, \`IS NOT NULL\` to check for property existence.
   * Use the \`elementId()\` function to return the unique identifier for a node or relationship as \`_id\`.
-    For example:
-    \`\`\`
-    MATCH (a:Person)-[:ACTED_IN]->(m:Movie)
-    WHERE a.name = 'Emil Eifrem'
-    RETURN m.title AS title, elementId(m) AS _id, a.role AS role
-    \`\`\`
-  * Include extra information about the nodes that may help an LLM provide a more informative answer,
-    for example the release date, rating or budget.
-  * For movies, use the tmdbId property to return a source URL.
-    For example: \`'https://www.themoviedb.org/movie/'+ m.tmdbId AS source\`.
-  * For movie titles that begin with "The", move "the" to the end.
-    For example "The 39 Steps" becomes "39 Steps, The" or "the matrix" becomes "Matrix, The".
+  * Include extra information about the papers that may help provide a more informative answer,
+    such as publication date, citations, and abstracts.
   * Limit the maximum number of results to 10.
-  * Respond with only a Cypher statement.  No preamble.
+  * Respond with only a Cypher statement. No preamble.
 
-
-  Example Question: What role did Tom Hanks play in Toy Story?
+  Example Question: Who authored the paper about transformers?
   Example Cypher:
-  MATCH (a:Actor {{name: 'Tom Hanks'}})-[rel:ACTED_IN]->(m:Movie {{title: 'Toy Story'}})
-  RETURN a.name AS Actor, m.title AS Movie, elementId(m) AS _id, rel.role AS RoleInMovie
+  MATCH (p:Paper)<-[:AUTHORED]-(a:Person)
+  WHERE toLower(p.title) CONTAINS 'transformer'
+  RETURN p.title AS Paper, collect(a.name) AS Authors, p.abstract AS Abstract,
+  elementId(p) AS _id
+  LIMIT 10
 
   Schema:
   {schema}

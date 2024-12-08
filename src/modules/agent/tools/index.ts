@@ -19,14 +19,14 @@ export default async function initTools(
     new DynamicStructuredTool({
       name: "graph-cypher-retrieval-chain",
       description:
-        "For retrieving movie information from the database including movie recommendations, actors and user ratings",
+        "For retrieving paper information from the database including abstracts, authors, and citations",
       schema: AgentToolInputSchema,
       func: (input, _runManager, config) => cypherChain.invoke(input, config),
     }),
     new DynamicStructuredTool({
       name: "graph-vector-retrieval-chain",
       description:
-        "For finding movies, comparing movies by their plot or recommending a movie based on a theme",
+        "For finding similar papers in the database based on embeddings",
       schema: AgentToolInputSchema,
       func: (input, _runManager: any, config) =>
         retrievalChain.invoke(input, config),

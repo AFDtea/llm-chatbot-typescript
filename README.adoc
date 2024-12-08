@@ -24,9 +24,9 @@ NEO4J_PASSWORD=your-generated-password
 
 OPENAI_API_KEY=sk-...
 
-NEXT_PUBLIC_CHATBOT_NAME=Ebert
-NEXT_PUBLIC_CHATBOT_DESCRIPTION="The Movie Recommendation Chatbot"
-NEXT_PUBLIC_CHATBOT_GREETING="Hello, I'm **Ebert**, your movie recommendation bot! How can I help you today?"
+NEXT_PUBLIC_CHATBOT_NAME=John
+NEXT_PUBLIC_CHATBOT_DESCRIPTION="The Computer Science Teaching Assistant"
+NEXT_PUBLIC_CHATBOT_GREETING="Hello, I'm **John**, your Computer Science Teaching Assistant. How can I help you today?"
 
 
 ----
