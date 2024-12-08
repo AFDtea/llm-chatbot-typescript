@@ -15,20 +15,22 @@ export default async function initVectorStore(
     url: process.env.NEO4J_URI as string,
     username: process.env.NEO4J_USERNAME as string,
     password: process.env.NEO4J_PASSWORD as string,
-    indexName: "moviePlots",
-    textNodeProperty: "plot",
+    indexName: "paperAbstracts",
+    textNodeProperty: "abstract",
     embeddingNodeProperty: "embedding",
     retrievalQuery: `
       RETURN
-        node.plot AS text,
+        node.abstract AS text,
         score,
         {
           _id: elementid(node),
+          id: node.id,
           title: node.title,
-          directors: [ (person)-[:DIRECTED]->(node) | person.name ],
-          actors: [ (person)-[r:ACTED_IN]->(node) | [person.name, r.role] ],
-          tmdbId: node.tmdbId,
-          source: 'https://www.themoviedb.org/movie/'+ node.tmdbId
+          abstract: node.abstract,
+          category: node.category,
+          authors: [ (person)-[:AUTHORED]->(node) | person.name ],
+          citations: [ (citing)-[:CITES]->(node) | citing.title ],
+          references: [ (node)-[:CITES]->(cited) | cited.title ]
         } AS metadata
     `,
    })
