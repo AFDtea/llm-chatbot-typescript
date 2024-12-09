@@ -27,10 +27,7 @@ export default async function initVectorStore(
           id: node.id,
           title: node.title,
           abstract: node.abstract,
-          category: node.category,
-          authors: [ (person)-[:AUTHORED]->(node) | person.name ],
-          citations: [ (citing)-[:CITES]->(node) | citing.title ],
-          references: [ (node)-[:CITES]->(cited) | cited.title ]
+          category: node.category
         } AS metadata
     `,
    })
