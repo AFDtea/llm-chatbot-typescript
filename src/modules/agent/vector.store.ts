@@ -15,7 +15,7 @@ export default async function initVectorStore(
     url: process.env.NEO4J_URI as string,
     username: process.env.NEO4J_USERNAME as string,
     password: process.env.NEO4J_PASSWORD as string,
-    indexName: "index_f7700477",
+    indexName: "paperAbstracts",
     textNodeProperty: "abstract",
     embeddingNodeProperty: "embedding",
     retrievalQuery: `
@@ -27,8 +27,7 @@ export default async function initVectorStore(
           id: node.id,
           title: node.title,
           abstract: node.abstract,
-          category: node.category,
-          pdf_url: node.pdf_url,
+          category: node.category
         } AS metadata
     `,
    })
